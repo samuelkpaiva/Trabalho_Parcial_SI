@@ -2,6 +2,21 @@
 
 Ambiente simples para o trabalho de Segurança da Informação.
 
+## Cenário de aplicação
+
+A simulação representa a **TechStore Ceres**, uma loja virtual de equipamentos de informática.
+
+Os funcionários (rede Cliente) precisam acessar o site e o sistema interno de consulta de produtos. O catálogo fica em um banco de dados PostgreSQL. Em um ambiente real sem segmentação, qualquer máquina da rede interna conseguiria tentar se conectar direto no banco, o que abre caminho para vazamento de dados, ataques de força bruta e movimentação lateral caso uma estação seja comprometida.
+
+Problemas mapeados no cenário atual (sem firewall):
+
+- Rede plana, sem separação entre estações de trabalho e servidores
+- Banco de dados acessível por qualquer host da rede
+- Falta de controle centralizado do tráfego
+- Superfície de ataque maior do que o necessário
+
+A proposta é segmentar a rede em duas zonas isoladas (Cliente e DMZ) e colocar um firewall no meio. O firewall só libera o acesso à porta 80 do servidor web. Qualquer tentativa de chegar no banco (porta 5432) ou em outras portas é bloqueada por padrão.
+
 ## O que tem aqui
 
 Duas redes isoladas:
