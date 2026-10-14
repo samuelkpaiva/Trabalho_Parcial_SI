@@ -3,9 +3,9 @@
 
 services:
 
-  # ============================================================
+ 
   # CONTAINER FIREWALL (gateway/roteador entre as redes)
-  # ============================================================
+
   firewall:
     image: alpine:3.20                    # imagem leve com iptables
     container_name: firewall              # nome fixo do container
@@ -23,9 +23,8 @@ services:
         ipv4_address: 172.28.2.1          # IP do firewall na rede DMZ
     restart: unless-stopped               # reinicia se cair
 
-  # ============================================================
   # CONTAINER CLIENTE (estação de trabalho interna)
-  # ============================================================
+
   cliente:
     image: alpine:3.20                    # imagem leve
     container_name: cliente               # nome fixo
@@ -37,9 +36,9 @@ services:
       - firewall                          # sobe depois do firewall
     restart: unless-stopped
 
-  # ============================================================
+
   # CONTAINER WEB NA DMZ (servidor Nginx público/interno)
-  # ============================================================
+
   dmz-web:
     image: nginx:alpine                   # Nginx leve
     container_name: dmz-web               # nome fixo
@@ -52,9 +51,9 @@ services:
       - firewall
     restart: unless-stopped
 
-  # ============================================================
+
   # CONTAINER BANCO NA DMZ (PostgreSQL isolado - só para demonstrar bloqueio)
-  # ============================================================
+
   dmz-db:
     image: postgres:16-alpine             # PostgreSQL leve
     container_name: dmz-db                # nome fixo
@@ -69,10 +68,9 @@ services:
       - firewall
     restart: unless-stopped
 
-# ============================================================
+
 # REDES ISOLADAS (bridge nativas do Docker)
-# ============================================================
-networks:
+
   lan_cliente:                            # Rede do Cliente (LAN interna)
     driver: bridge
     ipam:
