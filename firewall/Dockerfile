@@ -1,20 +1,8 @@
-# Dockerfile do Firewall
-# Imagem própria com as ferramentas necessárias já instaladas
+FROM alpine:3.22
 
-FROM alpine:3.20
+RUN apk add --no-cache iptables iproute2
 
-# Instala iptables, iproute2 e conntrack-tools
-RUN apk add --no-cache \
-    iptables \
-    iproute2 \
-    conntrack-tools \
-    curl
+COPY firewall.sh /usr/local/sbin/firewall.sh
+RUN chmod 750 /usr/local/sbin/firewall.sh
 
-# Copia o script de entrada
-COPY entrypoint.sh /entrypoint.sh
-
-# Garante permissão de execução
-RUN chmod +x /entrypoint.sh
-
-# Define o ponto de entrada
-ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
+CMD ["/bin/sh", "/usr/local/sbin/firewall.sh"]
