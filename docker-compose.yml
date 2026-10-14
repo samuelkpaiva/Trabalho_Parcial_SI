@@ -1,84 +1,97 @@
-# docker-compose.yml - Ambiente de lab de Firewall Linux (Netfilter/iptables)
-# Uso: docker compose up -d
-
 services:
-
- 
-  # CONTAINER FIREWALL (gateway/roteador entre as redes)
+  cliente:
+    build:
+      context: ./cliente
+    container_name: cliente_lan
+    hostname: estacao-cliente
+    cap_add:
+      - NET_ADMIN
+    command:
+      - /bin/sh
+      - -c
+      - |
+        ip route replace 172.20.20.0/24 via 172.20.10.254
+        ip route replace 172.20.30.0/24 via 172.20.10.254
+        exec sleep infinity
+    networks:
+      lan_cliente:
+        ipv4_address: 172.20.10.10
+    depends_on:
+      - firewall
+    restart: unless-stopped
 
   firewall:
-    image: alpine:3.20                    # imagem leve com iptables
-    container_name: firewall              # nome fixo do container
+    build:
+      context: ./firewall
+    container_name: firewall_gateway
+    hostname: firewall
     cap_add:
-      - NET_ADMIN                         # permissão para manipular iptables e rotas
+      - NET_ADMIN
     sysctls:
-      - net.ipv4.ip_forward=1             # habilita encaminhamento de pacotes (roteamento)
-    volumes:
-      - ./firewall/entrypoint.sh:/entrypoint.sh:ro   # script que aplica as regras
-    entrypoint: ["/bin/sh", "/entrypoint.sh"]         # executa o script ao subir
+      net.ipv4.ip_forward: "1"
     networks:
       lan_cliente:
-        ipv4_address: 172.28.1.1          # IP do firewall na rede do cliente
+        ipv4_address: 172.20.10.254
+      lan_servidores:
+        ipv4_address: 172.20.20.254
       dmz:
-        ipv4_address: 172.28.2.1          # IP do firewall na rede DMZ
-    restart: unless-stopped               # reinicia se cair
-
-  # CONTAINER CLIENTE (estação de trabalho interna)
-
-  cliente:
-    image: alpine:3.20                    # imagem leve
-    container_name: cliente               # nome fixo
-    command: sleep infinity               # mantém o container rodando
-    networks:
-      lan_cliente:
-        ipv4_address: 172.28.1.10         # IP fixo do cliente
-    depends_on:
-      - firewall                          # sobe depois do firewall
+        ipv4_address: 172.20.30.254
     restart: unless-stopped
 
-
-  # CONTAINER WEB NA DMZ (servidor Nginx público/interno)
-
-  dmz-web:
-    image: nginx:alpine                   # Nginx leve
-    container_name: dmz-web               # nome fixo
-    volumes:
-      - ./dmz-web/index.html:/usr/share/nginx/html/index.html:ro  # página de teste
+  nginx_dmz:
+    build:
+      context: ./dmz
+    container_name: nginx_dmz
+    hostname: servidor-web
+    cap_add:
+      - NET_ADMIN
+    command:
+      - /bin/sh
+      - -c
+      - |
+        ip route replace 172.20.10.0/24 via 172.20.30.254
+        ip route replace 172.20.20.0/24 via 172.20.30.254
+        exec nginx -g 'daemon off;'
     networks:
       dmz:
-        ipv4_address: 172.28.2.10         # IP fixo do servidor web
+        ipv4_address: 172.20.30.10
     depends_on:
       - firewall
     restart: unless-stopped
 
-
-  # CONTAINER BANCO NA DMZ (PostgreSQL isolado - só para demonstrar bloqueio)
-
-  dmz-db:
-    image: postgres:16-alpine             # PostgreSQL leve
-    container_name: dmz-db                # nome fixo
+  banco_dados:
+    image: postgres:16-alpine
+    container_name: banco_dados_interno
+    hostname: banco-dados
     environment:
-      POSTGRES_PASSWORD: senha123         # senha simples só para o lab
-      POSTGRES_USER: lab                  # usuário
-      POSTGRES_DB: labdb                  # banco
+      POSTGRES_DB: empresa
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-troque_esta_senha_local}
     networks:
-      dmz:
-        ipv4_address: 172.28.2.20         # IP fixo do banco
-    depends_on:
-      - firewall
+      lan_servidores:
+        ipv4_address: 172.20.20.10
     restart: unless-stopped
+    # Não publicar a porta 5432 no host.
+    # O acesso a partir de outras redes é bloqueado pelo firewall.
 
-
-# REDES ISOLADAS (bridge nativas do Docker)
-
-  lan_cliente:                            # Rede do Cliente (LAN interna)
+networks:
+  lan_cliente:
+    name: lan_cliente
     driver: bridge
     ipam:
       config:
-        - subnet: 172.28.1.0/24           # faixa de IPs da LAN
+        - subnet: 172.20.10.0/24
 
-  dmz:                                    # Rede DMZ (zona desmilitarizada)
+  lan_servidores:
+    name: lan_servidores
     driver: bridge
     ipam:
       config:
-        - subnet: 172.28.2.0/24           # faixa de IPs da DMZ
+        - subnet: 172.20.20.0/24
+
+  dmz:
+    name: rede_dmz
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.30.0/24
