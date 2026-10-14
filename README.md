@@ -1,80 +1,143 @@
-# Lab Firewall Linux - Netfilter e iptables
+# Infraestrutura de Rede Segmentada com Docker Compose
 
-Ambiente simples para o trabalho de Segurança da Informação.
+Projeto acadêmico que simula uma empresa com três segmentos de rede, um firewall Linux, um servidor web na DMZ e um banco PostgreSQL isolado.
 
-## Cenário de aplicação
+## Arquitetura
 
-A simulação representa a TechStore Ceres, uma loja virtual de equipamentos de informática.
+| Segmento/componente | Endereço | Função |
+|---|---|---|
+| LAN Cliente | `172.20.10.0/24` | Estação de trabalho de teste |
+| Estação cliente | `172.20.10.10` | `curl`, `nmap`, ferramentas de rede |
+| Firewall — LAN | `172.20.10.254` | Gateway da LAN Cliente |
+| Rede de Servidores | `172.20.20.0/24` | Serviços internos |
+| Firewall — servidores | `172.20.20.254` | Gateway da rede interna |
+| PostgreSQL | `172.20.20.10:5432` | Banco isolado, sem porta publicada no host |
+| DMZ | `172.20.30.0/24` | Serviço web intermediário |
+| Firewall — DMZ | `172.20.30.254` | Gateway da DMZ |
+| Nginx | `172.20.30.10:80` | Página HTTP de demonstração |
 
-Os funcionários (rede Cliente) precisam acessar o site e o sistema interno de consulta de produtos. O catálogo fica em um banco de dados PostgreSQL. Em um ambiente real sem segmentação, qualquer máquina da rede interna conseguiria tentar se conectar direto no banco, o que abre caminho para vazamento de dados, ataques de força bruta e movimentação lateral caso uma estação seja comprometida.
+## Regras implementadas
 
-Problemas mapeados no cenário atual (sem firewall):
+- `INPUT DROP`: bloqueia conexões novas destinadas ao próprio firewall, exceto loopback e tráfego de retorno.
+- `FORWARD DROP`: bloqueia por padrão o tráfego roteado entre segmentos.
+- Permite novas conexões TCP/80 da LAN Cliente (`172.20.10.0/24`) para o Nginx (`172.20.30.10`).
+- Permite tráfego de retorno de conexões estabelecidas ou relacionadas.
+- Não libera a LAN Cliente para a rede de servidores.
+- Não libera a DMZ para o PostgreSQL.
+- Registra, com limite de frequência, tráfego encaminhado que chega ao bloqueio padrão.
+- Nenhum serviço publica portas no host (`ports:` não é usado).
 
-- Rede plana, sem separação entre estações de trabalho e servidores
-- Banco de dados acessível por qualquer host da rede
-- Falta de controle centralizado do tráfego
-- Superfície de ataque maior do que o necessário
+**Nota:** a política `OUTPUT ACCEPT` permite tráfego originado pelo próprio firewall. Esta é uma simulação didática, não uma configuração pronta para produção.
 
-A proposta é segmentar a rede em duas zonas isoladas (Cliente e DMZ) e colocar um firewall no meio. O firewall só libera o acesso à porta 80 do servidor web. Qualquer tentativa de chegar no banco (porta 5432) ou em outras portas é bloqueada por padrão.
+## Requisitos
 
-## O que tem aqui
+- Docker Engine com Docker Compose v2 (`docker compose`)
+- Permissão para executar containers e configurar redes Docker
 
-Duas redes isoladas:
-
-- Rede do Cliente (172.28.1.0/24)
-- Rede DMZ (172.28.2.0/24)
-
-No meio fica o container do Firewall, que funciona como gateway real. Ele só deixa passar o que está liberado nas regras. O resto é bloqueado.
-
-O cliente e os serviços da DMZ têm rotas estáticas apontando para o firewall. Assim o tráfego realmente passa por ele.
-
-Tem um servidor web na DMZ (porta 80) e um PostgreSQL também na DMZ (porta 5432). O cliente consegue acessar só o web. O banco fica bloqueado de propósito.
-
-## Como subir
+## Iniciar
 
 Na pasta do projeto:
 
-    docker compose up -d --build
+```bash
+cp .env.example .env
+```
 
-O --build é necessário porque o firewall usa uma imagem própria (Dockerfile).
+Edite `.env` e troque a senha de exemplo. Depois:
 
-Para validar a sintaxe do compose antes de subir:
+```bash
+docker compose up -d --build
+docker compose ps
+```
 
-    docker compose config
+## Testes
 
-Para ver se o firewall aplicou as regras:
+### 1. Acesso autorizado ao Nginx
 
-    docker compose logs firewall
+```bash
+docker exec cliente_lan curl -i --connect-timeout 5 http://172.20.30.10
+```
 
-## Como testar
+Resultado esperado: `HTTP/1.1 200 OK` e o HTML da página.
 
-Entra no cliente:
+### 2. Verificar rotas da estação cliente
 
-    docker exec -it cliente sh
+```bash
+docker exec cliente_lan ip route
+```
 
-Instala as ferramentas de teste:
+Devem existir rotas para `172.20.20.0/24` e `172.20.30.0/24` via `172.20.10.254`.
 
-    apk add --no-cache curl nmap
+### 3. Verificar regras e contadores do firewall
 
-Testes que devem funcionar:
+```bash
+docker exec firewall_gateway iptables -L -n -v
+```
 
-    curl http://172.28.2.10
-    ping -c 2 172.28.1.1
-    ping -c 2 172.28.2.10
+A cadeia `FORWARD` deve ter política `DROP`. Após o teste HTTP, o contador da regra TCP/80 deve aumentar.
 
-Testes que devem ser bloqueados:
+### 4. Testar o bloqueio de acesso ao banco
 
-    nmap -p 5432 172.28.2.20
-    nmap -p 22,3306 172.28.2.10
+```bash
+docker exec cliente_lan nmap -Pn -p 5432 --reason --host-timeout 10s 172.20.20.10
+```
 
-## Para parar
+A conexão deve ser filtrada pelo firewall. Confirme o contador/log da regra `FORWARD`; um resultado de porta fechada, isoladamente, não prova filtragem por firewall.
 
-    docker compose down
+### 5. Ver logs do container
+
+```bash
+docker logs firewall_gateway
+```
+
+O alvo `LOG` do iptables escreve no log do kernel do host, e não necessariamente em `docker logs`. Para verificar contadores, use `iptables -L -n -v`; em Linux, os registros do kernel podem ser consultados com ferramentas como `dmesg` ou `journalctl -k`, dependendo das permissões e da configuração do host.
+
+### 6. Encerrar o laboratório
+
+```bash
+docker compose down
+```
+
+Para remover também o volume de dados do PostgreSQL, use `docker compose down -v`. Isso apaga os dados persistidos do banco.
 
 ## Observações técnicas
 
-- O firewall usa imagem própria com iptables, iproute2 e conntrack-tools já instalados.
-- O script entrypoint.sh tem shebang #!/bin/sh e finais de linha Unix.
-- Usa init: true e um loop persistente para o container não terminar.
-- O depends_on espera o healthcheck do firewall (não só o start).
-- Cliente e containers da DMZ têm rotas estáticas apontando para o firewall como gateway.
+- O firewall precisa estar conectado às três redes; os outros containers ficam conectados somente ao segmento necessário.
+- O cliente e o Nginx recebem rotas estáticas para que o tráfego entre os segmentos retorne pelo firewall.
+- `NET_ADMIN` é concedido apenas aos containers que configuram rotas ou regras de firewall. Na versão de laboratório, cliente e Nginx recebem essa capacidade para instalar rotas no início; em uma versão endurecida, configure as rotas por outro mecanismo e remova `NET_ADMIN` desses serviços.
+- As redes Docker `bridge` não substituem um firewall de host e não protegem contra administradores do host ou containers privilegiados.
+- O Nginx não está publicado para a rede física ou para a Internet. O acesso demonstrado é entre containers. A publicação externa exigiria um desenho e regras de entrada adicionais.
+- A regra TCP/80 é HTTP sem TLS, adequada apenas para demonstração. Para uso real, configure HTTPS, autenticação, gestão de segredos, atualização de imagens, limites de recursos, logs centralizados e testes de segurança.
+
+## Estrutura
+
+```text
+.
+├── docker-compose.yml
+├── .env.example
+├── .gitignore
+├── README.md
+├── RELATORIO_TECNICO.md
+├── cliente/
+│   └── Dockerfile
+├── firewall/
+│   ├── Dockerfile
+│   └── firewall.sh
+└── dmz/
+    ├── Dockerfile
+    └── index.html
+```
+
+## Publicar no GitHub
+
+Crie um repositório vazio no GitHub. Na pasta do projeto:
+
+```bash
+git init
+git add .
+git commit -m "Adiciona laboratório de rede segmentada com Docker Compose"
+git branch -M main
+git remote add origin https://github.com/SEU-USUARIO/SEU-REPOSITORIO.git
+git push -u origin main
+```
+
+Substitua a URL pelo endereço real do seu repositório. Não envie o arquivo `.env` com senhas reais.
