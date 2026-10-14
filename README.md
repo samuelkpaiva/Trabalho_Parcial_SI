@@ -34,5 +34,47 @@ Tem um servidor web na DMZ (porta 80) e um PostgreSQL também na DMZ (porta 5432
 
 Na pasta do projeto:
 
-```bash
-docker compose up -d --build
+    docker compose up -d --build
+
+O --build é necessário porque o firewall usa uma imagem própria (Dockerfile).
+
+Para validar a sintaxe do compose antes de subir:
+
+    docker compose config
+
+Para ver se o firewall aplicou as regras:
+
+    docker compose logs firewall
+
+## Como testar
+
+Entra no cliente:
+
+    docker exec -it cliente sh
+
+Instala as ferramentas de teste:
+
+    apk add --no-cache curl nmap
+
+Testes que devem funcionar:
+
+    curl http://172.28.2.10
+    ping -c 2 172.28.1.1
+    ping -c 2 172.28.2.10
+
+Testes que devem ser bloqueados:
+
+    nmap -p 5432 172.28.2.20
+    nmap -p 22,3306 172.28.2.10
+
+## Para parar
+
+    docker compose down
+
+## Observações técnicas
+
+- O firewall usa imagem própria com iptables, iproute2 e conntrack-tools já instalados.
+- O script entrypoint.sh tem shebang #!/bin/sh e finais de linha Unix.
+- Usa init: true e um loop persistente para o container não terminar.
+- O depends_on espera o healthcheck do firewall (não só o start).
+- Cliente e containers da DMZ têm rotas estáticas apontando para o firewall como gateway.
