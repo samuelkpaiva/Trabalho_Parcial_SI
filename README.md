@@ -109,23 +109,9 @@ Esse último comando remove os dados persistidos do banco. Use-o somente se não
 
 ## Alguns pontos importantes
 
-Este é um laboratório didático, não uma configuração pronta para produção. O Nginx não está publicado diretamente no computador anfitrião nem na Internet; o teste de acesso é feito entre os containers.
+O Nginx não está publicado diretamente no computador anfitrião nem na Internet; o teste de acesso é feito entre os containers.
 
 A regra HTTP usa a porta 80 sem criptografia, por isso serve apenas para demonstrar o funcionamento. Em um ambiente real, seria necessário planejar HTTPS, revisar as regras de entrada e saída, proteger as credenciais, manter as imagens atualizadas e acompanhar os registros de segurança.
 
 Nesta versão, o banco PostgreSQL fica isolado e não existe uma aplicação intermediária autorizada a acessá-lo. Caso essa aplicação seja adicionada no futuro, o firewall deverá permitir somente o endereço e a porta estritamente necessários.
 
-## Como publicar no GitHub
-
-Crie um repositório vazio no GitHub. Depois, abra o terminal na pasta do projeto e execute os comandos abaixo, substituindo a URL pela do seu repositório:
-
-```bash
-git init
-git add .
-git commit -m "Adiciona laboratório de rede segura com Docker Compose"
-git branch -M main
-git remote add origin https://github.com/SEU-USUARIO/SEU-REPOSITORIO.git
-git push -u origin main
-```
-
-Antes de enviar os arquivos, confira se o `.env` não está sendo incluído. O `.gitignore` já está configurado para ignorá-lo.
