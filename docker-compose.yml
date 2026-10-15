@@ -62,6 +62,8 @@ networks:
   lan_cliente:
     name: lan_cliente
     driver: bridge
+    driver_opts:
+      com.docker.network.bridge.gateway_mode_ipv4: nat-unprotected
     ipam:
       config:
         - subnet: 172.26.10.0/24
@@ -69,6 +71,8 @@ networks:
   lan_servidores:
     name: lan_servidores
     driver: bridge
+    driver_opts:
+      com.docker.network.bridge.gateway_mode_ipv4: nat-unprotected
     ipam:
       config:
         - subnet: 172.26.20.0/24
@@ -76,6 +80,8 @@ networks:
   dmz:
     name: rede_dmz
     driver: bridge
+    driver_opts:
+      com.docker.network.bridge.gateway_mode_ipv4: nat-unprotected
     ipam:
       config:
         - subnet: 172.26.30.0/24
