@@ -1,4 +1,3 @@
-```bash
 #!/bin/sh
 
 set -e
@@ -58,4 +57,3 @@ echo "[firewall] LAN Cliente (172.26.10.0/24) -> Nginx DMZ (172.26.30.10:80) lib
 
 # Mantém o contêiner ativo
 exec tail -f /dev/null
-```
