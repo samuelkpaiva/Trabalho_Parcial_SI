@@ -209,25 +209,7 @@ A implementação estará de acordo com o objetivo do exercício quando os segui
 
 Os resultados reais devem ser conferidos durante a execução. Saídas do terminal e capturas de tela podem ser anexadas à entrega como evidências dos testes.
 
-## 5. Limitações e melhorias futuras
-
-O projeto tem finalidade didática e demonstra o controle de tráfego entre containers. O servidor web não deve ser considerado publicado diretamente na rede física ou na Internet apenas por estar disponível na rede DMZ do Docker.
-
-O acesso HTTP utiliza a porta 80 sem criptografia, sendo adequado somente para a demonstração proposta.
-
-Em uma versão mais próxima de um ambiente real, seria necessário:
-
-- Configurar HTTPS e certificados válidos.
-- Revisar e restringir as regras de tráfego de saída.
-- Proteger as credenciais do banco de dados.
-- Manter as imagens e os serviços atualizados.
-- Centralizar o monitoramento e os registros de segurança.
-- Reduzir as permissões concedidas aos containers ao mínimo necessário.
-- Configurar verificações de saúde e dependências de inicialização quando necessário.
-
-O banco de dados está isolado pelo desenho das regras de encaminhamento, mas ainda não existe uma aplicação intermediária autorizada a acessá-lo. Caso essa funcionalidade seja implementada no futuro, deverá ser criada uma regra específica para a origem autorizada e a porta necessária, sem abrir o banco para toda a DMZ.
-
-## 6. Conclusão
+## 5. Conclusão
 
 O projeto demonstra como uma infraestrutura simples pode ser organizada em redes separadas para reduzir a comunicação desnecessária entre estações de trabalho, servidores web e banco de dados.
 
