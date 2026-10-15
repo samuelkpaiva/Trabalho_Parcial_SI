@@ -69,6 +69,8 @@ Nesta implementação, é liberado o acesso HTTP pela porta TCP 80 da LAN Client
 
 Não existe uma regra liberando o acesso da estação cliente ao PostgreSQL, nem uma regra permitindo que o servidor web inicie conexões com o banco. Assim, o banco permanece separado do serviço web.
 
+**Por que o banco fica fora da DMZ?** O enunciado cita o banco de dados como um possível serviço da DMZ, mas, neste projeto, ele foi colocado em uma rede de servidores separada. A DMZ abriga os serviços que precisam ser alcançados por outras redes (no caso, o servidor web) e, por isso, é a zona mais exposta. O banco guarda as informações internas da empresa e não precisa ser alcançado pela estação cliente. Mantê-lo em um segmento próprio, sem nenhuma regra de acesso liberada, é mais seguro do que misturá-lo ao serviço exposto. Além disso, o Nginx do laboratório serve apenas uma página estática de demonstração e não consulta o banco, por isso a regra DMZ → PostgreSQL permanece em `DROP`. Em uma aplicação real, em que o servidor web consultasse o banco, bastaria acrescentar uma regra explícita permitindo somente TCP/5432 do Nginx para o PostgreSQL.
+
 ### 2.3 Benefícios esperados
 
 Com essa organização, o projeto demonstra como a segmentação e o bloqueio por padrão ajudam a reduzir comunicações desnecessárias.
@@ -97,7 +99,9 @@ A política descrita não significa que cada porta bloqueada tenha uma regra ind
 
 **Observação:** as ações indicadas como `DROP por padrão` representam o comportamento esperado da política de encaminhamento. Elas não significam que exista necessariamente uma regra específica para cada porta da tabela.
 
-## 4. Implementação e validação
+## 4. Metodologia de testes e validação
+
+Esta seção descreve, passo a passo, como o avaliador deve subir o ambiente e testá-lo. Os testes estão organizados em três grupos: preparação do ambiente (4.1 e 4.2), **testes positivos**, que mostram o que deve funcionar (4.3 a 4.5), e **testes negativos**, que mostram o que deve ser bloqueado (4.6). O item 4.7 resume os critérios de validação.
 
 ### 4.1 Componentes da infraestrutura
 
@@ -118,6 +122,8 @@ Na pasta do projeto, execute:
 docker compose up -d --build
 ```
 
+**Observação sobre o Docker Engine 28 ou superior:** a partir da versão 28, o Docker passou a descartar, no próprio host, pacotes roteados para o IP de um container quando eles chegam por uma rede diferente daquela do container. Como neste projeto o tráfego do cliente atravessa o firewall para chegar ao Nginx e ao banco, esse comportamento padrão faz as conexões expirarem (*timeout*) antes mesmo de chegarem às regras do `iptables`. Por isso, as três redes do `docker-compose.yml` definem a opção `com.docker.network.bridge.gateway_mode_ipv4: nat-unprotected`, que desativa essa filtragem do Docker nessas redes. Todo o controle de acesso entre os segmentos continua sendo feito pelo firewall do projeto.
+
 Para verificar o estado dos serviços:
 
 ```bash
@@ -130,13 +136,15 @@ Os quatro serviços devem estar em execução. Caso algum serviço não inicie c
 docker compose logs
 ```
 
-Para consultar somente os logs do firewall:
+Para consultar somente os logs do firewall (o nome do serviço no Compose é `firewall`; o nome do container é `firewall_gateway`):
 
 ```bash
-docker compose logs firewall_gateway
+docker compose logs firewall
 ```
 
-### 4.3 Teste de acesso autorizado ao Nginx
+O comando equivalente pelo nome do container é `docker logs firewall_gateway`. Ele mostra as mensagens do script de inicialização, incluindo a lista de regras aplicada.
+
+### 4.3 Teste positivo 1: acesso autorizado ao Nginx
 
 Execute o seguinte comando:
 
@@ -148,7 +156,7 @@ docker exec cliente_lan curl -i --connect-timeout 5 http://172.26.30.10
 
 Esse teste verifica se a estação cliente consegue acessar o Nginx por meio do caminho de rede autorizado.
 
-### 4.4 Verificação das regras do firewall
+### 4.4 Teste positivo 2: verificação das regras do firewall
 
 Para listar as regras e os contadores de pacotes:
 
@@ -165,7 +173,9 @@ Verifique os seguintes pontos:
 
 O aumento dos contadores ajuda a confirmar que a regra foi utilizada durante o teste.
 
-### 4.5 Verificação das rotas da estação cliente
+**Sobre a regra de LOG:** o firewall possui uma regra com o alvo `LOG` no final da cadeia `FORWARD`. As mensagens dessa regra são enviadas ao log do kernel do host (por exemplo, `dmesg` no Linux) e não aparecem em `docker logs`. Dependendo do kernel, o registro também pode não funcionar dentro do container. Por isso, a validação neste trabalho é feita principalmente pelos **contadores** do `iptables`. Caso o kernel não suporte o alvo `LOG`, o script informa um aviso e continua aplicando as demais regras.
+
+### 4.5 Teste positivo 3: verificação das rotas da estação cliente
 
 Execute:
 
@@ -182,19 +192,51 @@ As rotas esperadas para as redes remotas são:
 
 A rota padrão exibida pelo container pode depender da configuração interna do Docker.
 
-### 4.6 Teste de bloqueio do acesso ao banco
+### 4.6 Testes negativos: acessos que devem ser bloqueados
 
-Para testar a porta padrão do PostgreSQL a partir da estação cliente, execute:
+Os testes abaixo são executados a partir da estação cliente e devem ser **bloqueados** pelo firewall. Como a ação adotada é `DROP`, o esperado é que o Nmap classifique as portas como `filtered`, com o motivo `no-response`.
+
+**Teste negativo 1: acesso direto ao PostgreSQL (TCP 5432):**
 
 ```bash
 docker exec cliente_lan nmap -Pn -p 5432 --reason --host-timeout 10s 172.26.20.10
 ```
 
-**Resultado esperado:** a porta pode aparecer como `filtered`, indicando que as sondagens não receberam uma resposta que permita determinar se a porta está aberta ou fechada.
+**Resultado esperado:** `5432/tcp filtered postgresql no-response`. O estado `filtered` indica que as sondagens não receberam resposta que permita determinar se a porta está aberta ou fechada, que é o comportamento do `DROP`. O `Host is up` exibido pelo Nmap aparece apenas porque foi usada a opção `-Pn`, que dispensa a descoberta de host.
 
-O resultado deve ser analisado em conjunto com as regras e os contadores do `iptables`. Uma porta indicada como `closed`, isoladamente, não comprova que o firewall bloqueou a tentativa.
+**Teste negativo 2: HTTPS no Nginx (TCP 443):**
 
-Caso o comando `nmap` não esteja instalado no container cliente, será necessário utilizar um ambiente de teste que tenha essa ferramenta disponível.
+```bash
+docker exec cliente_lan nmap -Pn -p 443 --reason --host-timeout 10s 172.26.30.10
+```
+
+**Resultado esperado:** `443/tcp filtered https no-response`, pois somente a porta 80 foi liberada para o Nginx.
+
+**Teste negativo 3: SSH nas redes de servidores e DMZ (TCP 22):**
+
+```bash
+docker exec cliente_lan nmap -Pn -p 22 --reason --host-timeout 10s 172.26.20.10 172.26.30.10
+```
+
+**Resultado esperado:** porta 22 `filtered` nos dois destinos.
+
+**Confirmação de que o bloqueio foi feito pelo firewall:** um resultado `filtered` isolado não prova que o firewall bloqueou, porque qualquer perda de pacotes no caminho produz o mesmo resultado. Depois dos testes negativos, consulte a cadeia `FORWARD`:
+
+```bash
+docker exec firewall_gateway iptables -L FORWARD -n -v
+```
+
+O contador de pacotes da política `DROP`, exibido no cabeçalho da cadeia (`Chain FORWARD (policy DROP N packets, ...)`), deve ter aumentado, indicando que os pacotes chegaram ao firewall e foram descartados por ele. Os pacotes da regra de LOG, que é limitada a poucas mensagens por minuto, também podem aparecer nessa listagem.
+
+**Teste de controle: o banco está em funcionamento:** para mostrar que o `filtered` vem do firewall e não de um banco parado, verifique o serviço dentro do próprio container do PostgreSQL:
+
+```bash
+docker exec banco_dados pg_isready -U admin -d empresa
+```
+
+**Resultado esperado:** `accepting connections`. Assim, o banco está ativo e apenas inacessível a partir da LAN Cliente.
+
+O comando `nmap` já vem instalado na imagem do container cliente (`cliente/Dockerfile`), portanto não é necessário instalar nada adicional.
 
 ### 4.7 Critérios de validação
 
@@ -203,7 +245,10 @@ A implementação estará de acordo com o objetivo do exercício quando os segui
 - O Nginx responder ao acesso HTTP iniciado pela estação cliente.
 - A cadeia `FORWARD` estiver configurada com política `DROP`.
 - O contador da regra TCP/80 aumentar depois do teste autorizado.
-- A tentativa de acesso da estação cliente ao PostgreSQL for filtrada pelo firewall.
+- A tentativa de acesso da estação cliente ao PostgreSQL (5432) for filtrada pelo firewall (`filtered`).
+- As tentativas de acesso às portas 443 e 22 também forem filtradas.
+- O contador da política `DROP` da cadeia `FORWARD` aumentar depois dos testes negativos.
+- O comando `pg_isready` confirmar que o PostgreSQL está em execução.
 - Os serviços não tiverem portas publicadas no host sem necessidade.
 - Os endereços IP utilizados nos arquivos de configuração e na documentação forem consistentes.
 
