@@ -141,17 +141,7 @@ Resultado esperado: a porta pode aparecer como `filtered`, indicando que o Nmap 
 
 Esse resultado é compatível com o bloqueio de conexões não autorizadas pelo firewall. Para confirmar o funcionamento do banco, é necessário realizar também um teste a partir da rede dos servidores.
 
-## 8. Segurança e limitações
-
-O projeto é um laboratório acadêmico e não deve ser considerado uma solução pronta para produção.
-
-O ambiente demonstra segmentação de rede e filtragem de tráfego, mas não substitui uma avaliação completa de segurança.
-
-A senha do PostgreSQL deve ser configurada localmente por meio do arquivo `.env`, criado a partir do `.env.example`. O arquivo `.env` não deve ser publicado no GitHub.
-
-As redes Docker utilizam as sub-redes `172.26.10.0/24`, `172.26.20.0/24` e `172.26.30.0/24` para evitar sobreposição com outras redes já existentes no ambiente de desenvolvimento.
-
-## 9. Conclusão
+## 8. Conclusão
 
 O projeto demonstra como separar uma infraestrutura em diferentes segmentos de rede e utilizar regras de firewall para controlar a comunicação entre eles.
 
