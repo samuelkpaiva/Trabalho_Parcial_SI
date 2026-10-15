@@ -1,114 +1,25 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Servidor Web - DMZ</title>
-
-    <style>
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: Arial, Helvetica, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 40px 20px;
-            line-height: 1.6;
-            color: #222;
-            background-color: #f4f6f8;
-        }
-
-        main {
-            padding: 30px;
-            background-color: #fff;
-            border: 1px solid #ddd;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-        }
-
-        h1 {
-            margin-top: 0;
-            color: #17365d;
-        }
-
-        h2 {
-            margin-top: 28px;
-            color: #24527a;
-            font-size: 1.2rem;
-        }
-
-        code {
-            padding: 3px 6px;
-            border-radius: 4px;
-            background-color: #eef1f4;
-            overflow-wrap: anywhere;
-        }
-
-        .status {
-            padding: 12px 16px;
-            border-left: 4px solid #218838;
-            background-color: #eaf6ed;
-            border-radius: 4px;
-        }
-
-        footer {
-            margin-top: 24px;
-            color: #555;
-            font-size: 0.9rem;
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Empresa — Servidor DMZ</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 4rem auto; padding: 0 1rem; line-height: 1.6; }
+    main { border: 1px solid #ddd; border-radius: 12px; padding: 2rem; }
+    code { background: #f2f2f2; padding: .15rem .35rem; border-radius: 4px; }
+  </style>
 </head>
-
 <body>
-    <main>
-        <h1>Servidor Web da Empresa</h1>
-
-        <p class="status">
-            <strong>Status:</strong> o Nginx está servindo esta página
-            na rede DMZ do laboratório.
-        </p>
-
-        <h2>Informações da infraestrutura</h2>
-
-        <ul>
-            <li>
-                <strong>Rede:</strong>
-                <code>172.26.30.0/24</code>
-            </li>
-            <li>
-                <strong>Endereço do servidor:</strong>
-                <code>172.26.30.10</code>
-            </li>
-            <li>
-                <strong>Gateway da DMZ:</strong>
-                <code>172.26.30.254</code>
-            </li>
-            <li>
-                <strong>Serviço:</strong> HTTP sobre TCP
-            </li>
-            <li>
-                <strong>Porta:</strong> <code>80</code>
-            </li>
-        </ul>
-
-        <h2>Política de acesso</h2>
-
-        <p>
-            O firewall permite o acesso HTTP da LAN Cliente
-            (<code>172.26.10.0/24</code>) para este servidor.
-            As demais conexões encaminhadas entre redes são
-            bloqueadas por padrão, salvo quando autorizadas
-            explicitamente pelas regras do firewall.
-        </p>
-
-        <footer>
-            Página demonstrativa para fins acadêmicos.
-            Este ambiente não representa, isoladamente,
-            uma infraestrutura pronta para produção.
-        </footer>
-    </main>
+  <main>
+    <h1>Servidor Web da Empresa</h1>
+    <p>O Nginx está funcionando na Rede DMZ do laboratório.</p>
+    <ul>
+      <li>Segmento: <code>172.20.30.0/24</code></li>
+      <li>Endereço do servidor: <code>172.20.30.10</code></li>
+      <li>Serviço de demonstração: HTTP/TCP 80</li>
+    </ul>
+    <p>Esta página é apenas uma demonstração acadêmica.</p>
+  </main>
 </body>
 </html>
