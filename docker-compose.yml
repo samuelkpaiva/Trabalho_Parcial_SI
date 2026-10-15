@@ -51,7 +51,7 @@ services:
     environment:
       POSTGRES_DB: empresa
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-troque_esta_senha_local}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
     networks:
       lan_servidores:
         ipv4_address: 172.26.20.10
