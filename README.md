@@ -1,117 +1,160 @@
-# Infraestrutura de Rede Segura com Docker Compose
+# Infraestrutura de Rede Segura com Docker
 
-Este projeto foi criado para demonstrar, na prática, como separar uma rede em partes diferentes e controlar a comunicação entre elas. A simulação representa uma empresa de pequeno porte que possui estações de trabalho, um servidor web e um banco de dados interno.
+## 1. Sobre o projeto
 
-Toda a estrutura é executada localmente com Docker Compose. Assim, é possível testar as regras de rede sem precisar montar vários computadores ou servidores físicos.
+Este projeto simula a infraestrutura de rede de uma pequena empresa usando Docker e Docker Compose. O objetivo é demonstrar a segmentação de redes, o uso de um firewall e o controle de acesso entre diferentes setores da infraestrutura.
 
-## Como a rede foi organizada
+A rede foi dividida em três segmentos: rede dos clientes, rede dos servidores e DMZ, onde fica o servidor web.
 
-A infraestrutura possui três redes separadas:
+## 2. Objetivos
 
-- **LAN Cliente (`172.20.10.0/24`):** contém a estação usada para executar os testes.
-- **Rede de Servidores (`172.20.20.0/24`):** mantém o banco PostgreSQL, que não deve ser acessado diretamente pela estação cliente.
-- **DMZ (`172.20.30.0/24`):** contém o servidor web Nginx. A DMZ funciona como uma área separada para o serviço web, sem colocar o banco de dados na mesma rede.
+- Separar os dispositivos em redes distintas.
+- Configurar um firewall para controlar o tráfego entre as redes.
+- Permitir o acesso HTTP do cliente ao servidor web da DMZ.
+- Bloquear conexões não autorizadas entre os segmentos.
+- Testar as regras de segurança usando ferramentas de rede.
 
-O firewall está conectado às três redes e controla o tráfego que passa de uma para outra. A estação cliente e o Nginx possuem rotas configuradas para que a comunicação entre segmentos passe pelo firewall.
+## 3. Estrutura da rede
 
-## O que o firewall permite e bloqueia
+A infraestrutura utiliza três redes Docker independentes.
 
-As regras foram configuradas para bloquear, por padrão, o tráfego encaminhado entre as redes. A única nova conexão liberada neste exemplo é o acesso HTTP, pela porta TCP 80, da LAN Cliente para o servidor Nginx na DMZ.
+**Rede dos clientes — LAN Cliente**
 
-O firewall também permite o tráfego de retorno de conexões autorizadas. Já o acesso da estação cliente ao banco PostgreSQL e as conexões iniciadas da DMZ para a rede interna não são liberados.
+- Sub-rede: `172.26.10.0/24`
+- Cliente: `172.26.10.10`
+- Gateway/Firewall: `172.26.10.254`
 
-O container do firewall usa a capability `NET_ADMIN`, necessária para configurar as regras de rede, e habilita o encaminhamento IPv4 com `net.ipv4.ip_forward=1`.
+**Rede dos servidores**
 
-## Arquivos do projeto
+- Sub-rede: `172.26.20.0/24`
+- PostgreSQL: `172.26.20.10`
+- Gateway/Firewall: `172.26.20.254`
 
-- `docker-compose.yml`: define os containers e as redes Docker.
-- `cliente/Dockerfile`: prepara a estação de testes com ferramentas como `curl` e `nmap`.
-- `firewall/Dockerfile`: instala as ferramentas necessárias para aplicar as regras de firewall.
-- `firewall/firewall.sh`: configura o roteamento e as regras do `iptables`.
-- `dmz/Dockerfile`: cria a imagem do servidor web.
-- `dmz/index.html`: página simples usada para testar o acesso HTTP.
-- `RELATORIO_TECNICO.md`: apresenta o contexto do projeto, os problemas considerados, a solução proposta e os testes.
-- `.env.example`: exemplo de configuração da senha do banco de dados.
+**DMZ — Servidor Web**
 
-## Antes de iniciar
+- Sub-rede: `172.26.30.0/24`
+- Nginx: `172.26.30.10`
+- Gateway/Firewall: `172.26.30.254`
 
-Você precisa ter o Docker instalado e uma versão do Docker Compose que aceite o comando `docker compose`.
+O firewall possui uma interface em cada rede e controla a comunicação entre os segmentos.
 
-Na pasta do projeto, copie o arquivo de exemplo das variáveis de ambiente:
+## 4. Tecnologias utilizadas
 
-```bash
-cp .env.example .env
-```
+- Docker
+- Docker Compose
+- Linux
+- iptables
+- Nginx
+- PostgreSQL
+- curl
+- Nmap
 
-Abra o arquivo `.env` e altere a senha de exemplo. Não use a senha de demonstração em ambientes reais e não publique um arquivo `.env` com credenciais verdadeiras.
+## 5. Regras do firewall
 
-## Como iniciar a infraestrutura
+O firewall utiliza o `iptables` para controlar o tráfego de rede.
 
-No terminal, dentro da pasta do projeto, execute:
+A política padrão da cadeia `INPUT` é bloquear conexões de entrada não autorizadas. A cadeia `FORWARD` também utiliza a política padrão de bloqueio.
+
+As principais regras são:
+
+- Permitir o tráfego pela interface de loopback.
+- Permitir pacotes relacionados a conexões já estabelecidas.
+- Permitir que a rede dos clientes acesse o Nginx da DMZ pela porta TCP 80.
+- Bloquear outros encaminhamentos que não correspondam às regras autorizadas.
+- Registrar parte do tráfego encaminhado que não foi permitido.
+
+A regra de acesso HTTP permite a comunicação da rede `172.26.10.0/24` com o servidor `172.26.30.10`, usando a porta TCP 80.
+
+O PostgreSQL não possui uma porta publicada para acesso direto pelo computador host. O firewall também não libera novas conexões da rede dos clientes para o banco de dados.
+
+## 6. Como executar o projeto
+
+Antes de iniciar, verifique se o Docker e o Docker Compose estão instalados.
+
+Na pasta que contém o arquivo `docker-compose.yml`, execute:
 
 ```bash
 docker compose up -d --build
 ```
 
-Para conferir se os containers iniciaram, use:
+Para verificar o estado dos contêineres:
 
 ```bash
 docker compose ps
 ```
 
-## Como testar
-
-Primeiro, teste se a estação consegue acessar a página hospedada no Nginx:
+Para visualizar os logs do firewall:
 
 ```bash
-docker exec cliente_lan curl -i --connect-timeout 5 http://172.20.30.10
+docker logs firewall_gateway
 ```
 
-Se tudo estiver funcionando, a resposta deve incluir o status `HTTP/1.1 200 OK` e o conteúdo da página.
-
-Para conferir as rotas da estação cliente, execute:
-
-```bash
-docker exec cliente_lan ip route
-```
-
-Para visualizar as regras do firewall e seus contadores:
-
-```bash
-docker exec firewall_gateway iptables -L -n -v
-```
-
-Também é possível testar a tentativa de acesso à porta padrão do PostgreSQL:
-
-```bash
-docker exec cliente_lan nmap -Pn -p 5432 --reason --host-timeout 10s 172.20.20.10
-```
-
-A intenção é que essa conexão seja filtrada pelo firewall. Para confirmar o resultado, confira também as regras e os contadores do `iptables`. Uma porta aparecer como fechada, por si só, não comprova que foi o firewall que bloqueou a conexão.
-
-O script inclui uma regra de log para o tráfego encaminhado que é bloqueado. Esses registros são enviados ao log do kernel e podem não aparecer em `docker logs`. Para uma primeira verificação, consulte os contadores com `iptables -L -n -v`. Em sistemas Linux, os registros do kernel também podem estar disponíveis por meio de `dmesg` ou `journalctl -k`, dependendo da configuração e das permissões.
-
-## Como encerrar
-
-Para parar e remover os containers e as redes criadas pelo Compose, execute:
+Para encerrar o projeto:
 
 ```bash
 docker compose down
 ```
 
-Se também quiser apagar o volume de dados do PostgreSQL, use:
+## 7. Testes de conectividade
+
+### Teste 1 — Acesso HTTP ao servidor da DMZ
+
+Execute:
 
 ```bash
-docker compose down -v
+docker exec cliente_lan curl -i --connect-timeout 5 http://172.26.30.10
 ```
 
-Esse último comando remove os dados persistidos do banco. Use-o somente se não precisar deles.
+Resultado esperado: resposta HTTP `200 OK` e exibição da página hospedada pelo Nginx.
 
-## Alguns pontos importantes
+Esse teste demonstra que o firewall permite o acesso HTTP autorizado entre a rede dos clientes e a DMZ.
 
-O Nginx não está publicado diretamente no computador anfitrião nem na Internet; o teste de acesso é feito entre os containers.
+### Teste 2 — Verificar as rotas do cliente
 
-A regra HTTP usa a porta 80 sem criptografia, por isso serve apenas para demonstrar o funcionamento. Em um ambiente real, seria necessário planejar HTTPS, revisar as regras de entrada e saída, proteger as credenciais, manter as imagens atualizadas e acompanhar os registros de segurança.
+Execute:
 
-Nesta versão, o banco PostgreSQL fica isolado e não existe uma aplicação intermediária autorizada a acessá-lo. Caso essa aplicação seja adicionada no futuro, o firewall deverá permitir somente o endereço e a porta estritamente necessários.
+```bash
+docker exec cliente_lan ip route
+```
 
+As rotas devem mostrar a rede local `172.26.10.0/24` e os caminhos para as redes `172.26.20.0/24` e `172.26.30.0/24` pelo gateway `172.26.10.254`.
+
+### Teste 3 — Conferir as regras do firewall
+
+Execute:
+
+```bash
+docker exec firewall_gateway iptables -L -n -v
+```
+
+O resultado deve mostrar a política `DROP` na cadeia `FORWARD` e uma regra que permite o acesso TCP à porta 80 do servidor `172.26.30.10`, originado na rede `172.26.10.0/24`.
+
+### Teste 4 — Verificar o bloqueio de acesso ao PostgreSQL
+
+Execute:
+
+```bash
+docker exec cliente_lan nmap -Pn -p 5432 --reason --host-timeout 10s 172.26.20.10
+```
+
+Resultado esperado: a porta pode aparecer como `filtered`, indicando que o Nmap não conseguiu determinar seu estado devido à filtragem ou à ausência de resposta.
+
+Esse resultado é compatível com o bloqueio de conexões não autorizadas pelo firewall. Para confirmar o funcionamento do banco, é necessário realizar também um teste a partir da rede dos servidores.
+
+## 8. Segurança e limitações
+
+O projeto é um laboratório acadêmico e não deve ser considerado uma solução pronta para produção.
+
+O ambiente demonstra segmentação de rede e filtragem de tráfego, mas não substitui uma avaliação completa de segurança.
+
+A senha do PostgreSQL deve ser configurada localmente por meio do arquivo `.env`, criado a partir do `.env.example`. O arquivo `.env` não deve ser publicado no GitHub.
+
+As redes Docker utilizam as sub-redes `172.26.10.0/24`, `172.26.20.0/24` e `172.26.30.0/24` para evitar sobreposição com outras redes já existentes no ambiente de desenvolvimento.
+
+## 9. Conclusão
+
+O projeto demonstra como separar uma infraestrutura em diferentes segmentos de rede e utilizar regras de firewall para controlar a comunicação entre eles.
+
+O teste HTTP confirma o acesso autorizado ao servidor web da DMZ, enquanto os testes de rotas e regras permitem verificar a configuração da infraestrutura.
+
+A atividade contribui para o aprendizado de redes de computadores, administração de sistemas Linux, Docker e conceitos básicos de segurança de redes.
