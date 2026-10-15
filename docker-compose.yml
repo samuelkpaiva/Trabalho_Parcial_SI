@@ -1,3 +1,4 @@
+```yaml
 services:
   cliente:
     build:
@@ -9,7 +10,10 @@ services:
         ipv4_address: 172.26.10.10
     cap_add:
       - NET_ADMIN
-    command: ["sh", "-c", "ip route replace 172.26.20.0/24 via 172.26.10.254 && ip route replace 172.26.30.0/24 via 172.26.10.254 && tail -f /dev/null"]
+    command: >
+      sh -c "ip route replace 172.26.20.0/24 via 172.26.10.254 &&
+             ip route replace 172.26.30.0/24 via 172.26.10.254 &&
+             tail -f /dev/null"
     depends_on:
       - firewall
 
@@ -40,7 +44,10 @@ services:
     networks:
       dmz:
         ipv4_address: 172.26.30.10
-    command: ["sh", "-c", "ip route replace 172.26.10.0/24 via 172.26.30.254 && ip route replace 172.26.20.0/24 via 172.26.30.254 && nginx -g 'daemon off;'"]
+    command: >
+      sh -c "ip route replace 172.26.10.0/24 via 172.26.30.254 &&
+             ip route replace 172.26.20.0/24 via 172.26.30.254 &&
+             nginx -g 'daemon off;'"
     depends_on:
       - firewall
 
@@ -82,3 +89,4 @@ networks:
 
 volumes:
   dados_postgres:
+```
