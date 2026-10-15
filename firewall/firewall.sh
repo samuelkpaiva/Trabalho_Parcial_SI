@@ -2,9 +2,9 @@
 
 set -e
 
-echo "[firewall] Ativando roteamento IPv4..."
+echo "[firewall] Aplicando regras de filtragem..."
 
-# O encaminhamento IPv4 é configurado pelo Docker Compose.
+# O encaminhamento IPv4 (net.ipv4.ip_forward=1) é configurado pelo Docker Compose.
 # Não executar sysctl dentro do contêiner.
 
 # Limpa as regras anteriores
@@ -40,15 +40,17 @@ iptables -A FORWARD \
   --ctstate NEW \
   -j ACCEPT
 
-# Registra tráfego encaminhado que não foi permitido
+# Registra tráfego encaminhado que não foi permitido.
+
 iptables -A FORWARD \
   -m limit \
   --limit 5/min \
   --limit-burst 10 \
   -j LOG \
   --log-prefix "FIREWALL DROP: " \
-  --log-level 4
+  --log-level 4 || echo "[firewall] AVISO: alvo LOG não suportado neste kernel; seguindo sem LOG."
 
+echo "[firewall] ip_forward = $(cat /proc/sys/net/ipv4/ip_forward)"
 echo "[firewall] Regras aplicadas:"
 iptables -L -n -v
 
