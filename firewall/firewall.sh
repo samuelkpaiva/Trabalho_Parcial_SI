@@ -1,4 +1,4 @@
-
+```sh
 #!/bin/sh
 
 set -e
@@ -48,3 +48,7 @@ iptables -L -n -v
 echo "[firewall] Política FORWARD: DROP."
 echo "[firewall] ICMP permitido para o firewall."
 echo "[firewall] LAN Cliente (172.26.10.0/24) -> Nginx DMZ (172.26.30.10:80) liberado."
+
+# Mantém o contêiner ativo para que o firewall continue funcionando
+exec tail -f /dev/null
+```
